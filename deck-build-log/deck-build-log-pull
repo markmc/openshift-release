@@ -4,9 +4,13 @@ JOB_SUBSTRING='e2e-aws' &&
 BUILD_LOG_CACHE=~/.cache/openshift-deck-build-logs &&
 
 sync() {
+	N_JOBS=${1}; shift
+	JOB_IDX=1
 	OLDEST_TIMESTAMP=
 	while read JOB
 	do
+		echo "Downloading data for ${JOB_IDX} of ${N_JOBS} jobs" >&2 &&
+		JOB_IDX=$((JOB_IDX+1)) &&
 		BUILD="$(echo "${JOB}" | jq -r .build_id)" &&
 		JOB_URI="$(echo "${JOB}" | jq -r .url)" &&
 		STARTED="$(echo "${JOB}" | jq -r .started)" &&
@@ -50,7 +54,8 @@ sync() {
 mkdir -p "${BUILD_LOG_CACHE}" &&
 curl https://prow.svc.ci.openshift.org/data.js | jq "[.[] | select (.job | contains(\"${JOB_SUBSTRING}\"))]" >"${BUILD_LOG_CACHE}/jobs.json" &&
 JOBS="$(jq -c ".[] | select(.state == \"failure\")" "${BUILD_LOG_CACHE}/jobs.json")" &&
-OLDEST_TIMESTAMP="$(echo "${JOBS}" | sync | tail -n1)" &&
+N_JOBS="$(echo "${JOBS}" | jq -s '. | length')" &&
+OLDEST_TIMESTAMP="$(echo "${JOBS}" | sync $N_JOBS | tail -n1)" &&
 if test -n "${OLDEST_TIMESTAMP}"
 then
 	find "${BUILD_LOG_CACHE}" -name job.json | while read JOB_PATH
